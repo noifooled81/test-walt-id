@@ -9,6 +9,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from posix import stat
 
 # Environment variable ports matching walt.id setup
 ISSUER_PORT = os.getenv("ISSUER_API2_PORT", "7005")
@@ -175,7 +176,7 @@ def test_issuer_create_offers(profile_id):
     url = f"http://{HOST}:{ISSUER_PORT}/issuer2/credential-offers"
     print(f"\n[TEST 5] POST {url} (Create New Offer)...")
 
-    payload = json.dumps(
+    payload_data = (
         {
             "profileId": profile_id,
             "authMethod": "PRE_AUTHORIZED",
@@ -207,7 +208,9 @@ def test_issuer_create_offers(profile_id):
             "authMethod": "PRE_AUTHORIZED",
             "expiresInSeconds": -1,
         }
-    ).encode("utf-8")
+    )
+
+    payload = json.dumps(payload_data).encode("utf-8")
     req = urllib.request.Request(
         url,
         data=payload,
@@ -234,7 +237,7 @@ def test_issuer_create_offers(profile_id):
                 "Response JSON missing 'credentialOffer' field!"
             )
             print(f"  [SUCCESS] Created Offer: {offer_id}")
-            return str(offer_url)
+            return str(offer_url), payload_data
 
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8")
@@ -273,11 +276,51 @@ def test_receive_offer(wallet_id, offer_url):
             )
 
             print(f"  [SUCCESS] Recived Offer: {credential_ids}")
+            return credential_ids
 
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8")
         print(f"  [-] HTTP Error {e.code}: {error_body}")
         sys.exit(1)
+
+
+def test_raw_offer_correctness(wallet_id, credential_id, payload_data, i):
+    """GET /wallet/{wallet_id}/credentials/{credential_id} to check correctness of created offer."""
+    url = f"http://{HOST}:{WALLET_PORT}/wallet/{wallet_id}/credentials/{credential_id}"
+    print(f"\n[TEST {7 + i}] GET {url} (Verify Created Offer {credential_id})...")
+
+    try:
+        with urllib.request.urlopen(url) as resp:
+            status = resp.status
+            data = json.loads(resp.read().decode("utf-8"))
+            assert status == 200, f"Expected HTTP 200, got {status}"
+
+            student_info = payload_data["runtimeOverrides"]["credentialData"][
+                "credentialSubject"
+            ]["studentInfo"]
+
+            if "myUniCredential" in data.get("type", []):
+                first_name = data.get("firstName")
+                assert first_name == student_info["firstName"], (
+                    f"Expect Jane, got {first_name}"
+                )
+                last_name = data.get("lastName")
+                assert last_name == student_info["lastName"], (
+                    f"Expect Kim, got {last_name}"
+                )
+                gender = data.get("gender")
+                assert gender == student_info["gender"], f"Expect Female, got {gender}"
+                intake = data.get("intake")
+                assert intake == student_info["intake"], f"Expect 2019, got {intake}"
+                status = data.get("status")
+                assert status == student_info["status"], (
+                    f"Expect Graduated, got {status}"
+                )
+
+            print(f"  [SUCCESS] Verried Offer: {credential_id}")
+
+    except urllib.error.HTTPError as e:
+        print(f"  [-] HTTP Error {e.code}: {e.read().decode('utf-8')}")
 
 
 if __name__ == "__main__":
@@ -298,8 +341,11 @@ if __name__ == "__main__":
     test_create_key(wallet_id)
     test_create_did(wallet_id)
     test_issuer_profile(profile_id)
-    offer_url = test_issuer_create_offers(profile_id)
-    test_receive_offer(wallet_id, offer_url)
+    offer_url, payload_data = test_issuer_create_offers(profile_id)
+    credential_ids = test_receive_offer(wallet_id, offer_url)
+
+    for i, id in enumerate(credential_ids):
+        test_raw_offer_correctness(wallet_id, id, payload_data, i)
 
     print("\n==================================================")
     print("   ALL REST API TESTS PASSED SUCCESSFULLY!        ")
