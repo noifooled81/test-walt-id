@@ -177,7 +177,7 @@ def test_issuer_create_offers(profile_id):
 
     payload = json.dumps(
         {
-            "profileId": {profile_id},
+            "profileId": profile_id,
             "authMethod": "PRE_AUTHORIZED",
             "runtimeOverrides": {
                 "credentialData": {
@@ -203,7 +203,7 @@ def test_issuer_create_offers(profile_id):
         }
         if profile_id == "myUniCredential"
         else {
-            "profileId": {profile_id},
+            "profileId": profile_id,
             "authMethod": "PRE_AUTHORIZED",
             "expiresInSeconds": -1,
         }
