@@ -1,0 +1,51 @@
+name: walt.id REST API Integration Tests
+
+on:
+    push:
+        branches: [main, master]
+    pull_request:
+        branches: [main, master]
+
+permissions:
+    contents: read
+
+jobs:
+    integration-test:
+        runs-on: ubuntu-latest
+        env:
+            ISSUER_API2_PORT: 7005
+            VERIFIER_API2_PORT: 7004
+            WALLET_API2_PORT: 7006
+
+        steps:
+            - name: Checkout Repository
+              uses: actions/checkout@v4
+
+            - name: Set up .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: "10.0.x"
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+
+            - name: Generate & Backup-Append Configs
+              run: |
+                  dotnet run --project Application
+
+            - name: Spin Up walt.id Containers
+              run: |
+                  cd waltid
+                  docker compose --profile identity up -d
+
+            - name: Run Python REST API Tests
+              run: |
+                  python3 test_waltid_api.py
+
+            - name: Tear Down Containers
+              if: always()
+              run: |
+                  cd waltid
+                  docker compose --profile identity down
