@@ -170,7 +170,9 @@ def test_issuer_profile() -> None:
             profile_name = cast(str, data.get("name", "myUniCredentialSD"))
             print(f"  [SUCCESS] Loaded Profile: {profile_name}")
     except urllib.error.HTTPError as e:
-        print(f"  [-] HTTP Error {e.code}: {e.read().decode('utf-8')}")
+        error_body = e.read().decode("utf-8")
+        print(f"  [-] HTTP Error {e.code}: {error_body}")
+        sys.exit(1)
 
 
 def test_issuer_create_offers() -> tuple[str, dict[str, Any]]:  # pyright: ignore[reportExplicitAny]
